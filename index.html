@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Break-Even Analysis Simulator</title>
+    <!-- Include Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Include Chart.js (fixed version for compatibility) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.0.1/dist/chart.umd.min.js"></script>
+    <!-- Include Chart.js Annotation Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+    <script>
+        // Ensure Chart.js Annotation Plugin is registered immediately after its script is loaded
+        if (typeof Chart !== 'undefined' && typeof ChartAnnotation !== 'undefined') {
+            Chart.register(ChartAnnotation);
+        }
+    </script>
+    <style>
+        /* Use Inter font */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light gray background */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: #ffffff; /* White container background */
+            padding: 32px;
+            border-radius: 12px; /* Rounded corners */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* Shadow */
+            max-width: 700px; /* Increase max-width to accommodate the chart */
+            width: 100%;
+            border: 1px solid #e2e8f0; /* Light border */
+        }
+        input[type="number"] {
+            padding: 10px 14px;
+            border: 1px solid #cbd5e0; /* Border color */
+            border-radius: 8px; /* Rounded corners */
+            width: 100%;
+            font-size: 1rem;
+            transition: border-color 0.2s ease-in-out;
+        }
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #3b82f6; /* Blue border on focus */
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25); /* Shadow on focus */
+        }
+        button {
+            background-color: #3b82f6; /* Blue button background */
+            color: #ffffff; /* White text */
+            padding: 12px 24px;
+            border-radius: 8px; /* Rounded corners */
+            font-size: 1.125rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
+            width: 100%;
+            border: none;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        button:hover {
+            background-color: #2563eb; /* Darker blue on hover */
+            transform: translateY(-1px); /* Slight lift effect */
+        }
+        button:active {
+            background-color: #1d4ed8; /* Even darker blue on click */
+            transform: translateY(0); /* Reset position */
+        }
+        .result-box {
+            background-color: #f8fafc; /* Result box background */
+            border: 1px solid #d1d5db; /* Result box border */
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 24px;
+            font-size: 1.1rem;
+            color: #333;
+            min-height: 80px; /* Minimum height */
+            display: flex;
+            flex-direction: column; /* Allow content to stack vertically */
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+        .error-message {
+            color: #ef4444; /* Red error message */
+            font-weight: 500;
+            margin-top: 10px;
+        }
+        .chart-container {
+            margin-top: 32px;
+            padding: 16px;
+            background-color: #f8fafc;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            position: relative; /* For responsive canvas */
+            height: 350px; /* Fixed height for the chart container */
+        }
+        canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">Break-Even Analysis Simulator</h1>
+
+        <div class="mb-6">
+            <label for="fixedCost" class="block text-gray-700 text-lg font-medium mb-2">Fixed Cost (GBP):</label>
+            <input type="number" id="fixedCost" placeholder="e.g.: 10000" class="rounded-lg focus:ring-blue-500 focus:border-blue-500">
+        </div>
+
+        <div class="mb-6">
+            <label for="variableCostPerUnit" class="block text-gray-700 text-lg font-medium mb-2">Variable Cost Per Unit (GBP/Unit):</label>
+            <input type="number" id="variableCostPerUnit" placeholder="e.g.: 50" class="rounded-lg focus:ring-blue-500 focus:border-blue-500">
+        </div>
+
+        <div class="mb-8">
+            <label for="sellingPricePerUnit" class="block text-gray-700 text-lg font-medium mb-2">Selling Price Per Unit (GBP/Unit):</label>
+            <input type="number" id="sellingPricePerUnit" placeholder="e.g.: 100" class="rounded-lg focus:ring-blue-500 focus:border-blue-500">
+        </div>
+
+        <button id="calculateBtn" class="rounded-lg">Calculate and Update Chart</button>
+
+        <div id="result" class="result-box text-gray-900 font-semibold">
+            Please enter the information above to calculate.
+        </div>
+
+        <div class="chart-container">
+            <canvas id="breakEvenChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // Get DOM elements
+        const fixedCostInput = document.getElementById('fixedCost');
+        const variableCostPerUnitInput = document.getElementById('variableCostPerUnit');
+        const sellingPricePerUnitInput = document.getElementById('sellingPricePerUnit');
+        const calculateBtn = document.getElementById('calculateBtn');
+        const resultDiv = document.getElementById('result');
+        const chartCanvas = document.getElementById('breakEvenChart');
+
+        let breakEvenChart; // To store the Chart.js instance
+
+        // Initialize the chart
+        function initializeChart() {
+            const ctx = chartCanvas.getContext('2d');
+            
+            breakEvenChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [], // Quantity axis
+                    datasets: [
+                        {
+                            label: 'Total Fixed Cost',
+                            data: [],
+                            borderColor: 'rgb(255, 99, 132)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                            borderWidth: 2,
+                            fill: false,
+                            pointRadius: 0, // Do not display data points
+                            tension: 0 // Set tension to 0 for straight lines
+                        },
+                        {
+                            label: 'Total Cost',
+                            data: [],
+                            // Lighten the total cost line color
+                            borderColor: 'rgba(75, 192, 192, 0.5)', // Reduce opacity
+                            backgroundColor: 'rgba(75, 192, 192, 0.1)', // Reduce opacity
+                            borderWidth: 2,
+                            fill: false,
+                            pointRadius: 0,
+                            tension: 0 // Set tension to 0 for straight lines
+                        },
+                        {
+                            label: 'Total Revenue',
+                            data: [],
+                            borderColor: 'rgb(153, 102, 255)',
+                            backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                            borderWidth: 2,
+                            fill: {
+                                target: '1', // Fill to dataset at index 1 (i.e., "Total Cost")
+                                above: 'rgba(144, 238, 144, 0.3)', // Light green when total revenue is above total cost
+                                below: 'rgba(255, 160, 122, 0.3)'  // Light red when total revenue is below total cost
+                            },
+                            pointRadius: 0,
+                            tension: 0 // Set tension to 0 for straight lines
+                        },
+                        {
+                            label: 'Break-Even Point', // Label for the new dataset
+                            data: [], // This will only contain one point
+                            backgroundColor: 'rgb(255, 0, 0)', // Red point
+                            borderWidth: 0, // Border width set to 0, remove border
+                            pointRadius: 4, // Larger point radius, half size
+                            pointBackgroundColor: 'rgb(255, 0, 0)', // Red point
+                            pointBorderColor: 'rgb(0, 0, 0)', // Black border (kept here just in case, though border width is 0)
+                            pointBorderWidth: 0, // Border width set to 0, remove border
+                            fill: false,
+                            tension: 0,
+                            showLine: false // Do not show connecting line, only the point
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false, // Allow canvas to adjust based on container size
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Break-Even Point Chart',
+                            font: {
+                                size: 18
+                            }
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                        },
+                        legend: { // Configure legend
+                            display: true,
+                            position: 'bottom', // Place legend at the bottom
+                            labels: {
+                                usePointStyle: true, // Use point style for legend items
+                                font: {
+                                    size: 14
+                                }
+                            }
+                        },
+                        annotation: { // Configure annotation plugin
+                            annotations: {
+                                breakEvenLabel: { // Define an annotation named breakEvenLabel
+                                    type: 'label',
+                                    xValue: 0, // Initial value, will be updated in calculateBreakEvenPointAndUpdateChart
+                                    yValue: 0, // Initial value, will be updated in calculateBreakEvenPointAndUpdateChart
+                                    content: ['Break-even point'], // Label content
+                                    font: {
+                                        size: 14,
+                                        weight: 'bold'
+                                    },
+                                    color: 'black', // Font color
+                                    backgroundColor: 'rgba(255, 255, 255, 0.7)', // Background color, slightly transparent
+                                    borderColor: 'black', // Border color
+                                    borderWidth: 1, // Border width
+                                    borderRadius: 4, // Border radius
+                                    xAdjust: 0, // X-axis adjustment
+                                    yAdjust: -15, // Y-axis adjusted upwards to place label above the point
+                                    display: false // Initially hidden, display when valid data is available
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Quantity (Units)'
+                            },
+                            beginAtZero: true
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Cost/Revenue (GBP)' // Changed to GBP
+                            },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // Function to calculate break-even point and update the chart
+        function calculateBreakEvenPointAndUpdateChart() {
+            // Check if chart instance is initialized at the beginning of the function
+            if (!breakEvenChart) {
+                console.log("Chart instance is not yet initialized, skipping update.");
+                return; // If chart is not initialized, return directly
+            }
+
+            // Clear previous error messages
+            resultDiv.classList.remove('error-message');
+            resultDiv.innerHTML = 'Calculating...'; // Show calculating status
+
+            // Get input values and convert to float
+            const fixedCost = parseFloat(fixedCostInput.value);
+            const variableCostPerUnit = parseFloat(variableCostPerUnitInput.value);
+            const sellingPricePerUnit = parseFloat(sellingPricePerUnitInput.value);
+
+            // Validate if inputs are valid numbers
+            if (isNaN(fixedCost) || isNaN(variableCostPerUnit) || isNaN(sellingPricePerUnit)) {
+                resultDiv.innerHTML = '<span class="error-message">Please enter all valid numbers.</span>';
+                // Clear chart data, including break-even point and label
+                updateChartData([], [], [], [], []);
+                updateBreakEvenLabel(0, 0, false); // Hide label
+                return;
+            }
+
+            // Calculate contribution margin per unit
+            const contributionMarginPerUnit = sellingPricePerUnit - variableCostPerUnit; 
+
+            // Check if contribution margin per unit is positive to avoid division by zero or negative numbers
+            if (contributionMarginPerUnit <= 0) {
+                resultDiv.innerHTML = '<span class="error-message">Selling price per unit must be greater than variable cost per unit to calculate the break-even point.</span>';
+                // Clear chart data, including break-even point and label
+                updateChartData([], [], [], [], []);
+                updateBreakEvenLabel(0, 0, false); // Hide label
+                return;
+            }
+
+            // Calculate break-even point (units)
+            const breakEvenPointUnits = fixedCost / contributionMarginPerUnit;
+            // Calculate total revenue/cost at break-even point
+            const breakEvenPointValue = sellingPricePerUnit * breakEvenPointUnits;
+
+            // Display results
+            resultDiv.innerHTML = `
+                <p>Break-Even Point (Units): <span class="text-blue-600">${breakEvenPointUnits.toFixed(2)}</span> Units</p>
+                <p>This means you need to sell ${breakEvenPointUnits.toFixed(2)} units to cover all costs.</p>
+            `;
+
+            // --- Update chart data ---
+            // Define key quantity points for the X-axis: 0, break-even point, and a maximum value
+            const q0 = 0;
+            const qBE = breakEvenPointUnits;
+            // Ensure chart display range is sufficient, at least twice the break-even point, and not less than 100
+            const qMax = Math.max(breakEvenPointUnits * 2, 100); 
+
+            // Create an array of labels including these key points, and ensure they are sorted
+            const quantityLabels = [q0];
+            // Only add break-even point if it's between 0 and qMax, to avoid duplicates or out-of-range values
+            if (qBE > q0 && qBE < qMax) { 
+                quantityLabels.push(qBE);
+            }
+            quantityLabels.push(qMax);
+            quantityLabels.sort((a, b) => a - b); // Ensure X-axis labels are in ascending order
+
+            // Calculate Y-values for each line based on these key quantity points
+            const fixedCostData = [];
+            const totalCostData = [];
+            const totalRevenueData = [];
+            
+            // Break-even point data will only contain one point
+            const breakEvenPointData = []; 
+            if (!isNaN(qBE) && !isNaN(breakEvenPointValue)) {
+                breakEvenPointData.push({ x: qBE, y: breakEvenPointValue });
+            }
+
+            quantityLabels.forEach(q => {
+                fixedCostData.push(fixedCost); // Fixed cost line is horizontal
+                totalCostData.push(fixedCost + (q * variableCostPerUnit));
+                totalRevenueData.push(q * sellingPricePerUnit);
+            });
+
+            // Adjust parameters passed to updateChartData
+            updateChartData(quantityLabels, fixedCostData, totalCostData, totalRevenueData, breakEvenPointData);
+            // Update break-even point label position and display status
+            updateBreakEvenLabel(breakEvenPointUnits, breakEvenPointValue, true);
+        }
+
+        // Function to update Chart.js chart data
+        function updateChartData(labels, fixedCost, totalCost, totalRevenue, breakEvenPoint) {
+            // Ensure breakEvenChart instance exists (this check is already in calculateBreakEvenPointAndUpdateChart)
+            breakEvenChart.data.labels = labels;
+            breakEvenChart.data.datasets[0].data = fixedCost;
+            breakEvenChart.data.datasets[1].data = totalCost; 
+            breakEvenChart.data.datasets[2].data = totalRevenue; 
+            breakEvenChart.data.datasets[3].data = breakEvenPoint; // New break-even point dataset
+            breakEvenChart.update(); // Update the chart
+        }
+
+        // Function to update break-even point label
+        function updateBreakEvenLabel(x, y, display) {
+            if (breakEvenChart && breakEvenChart.options.plugins.annotation.annotations.breakEvenLabel) {
+                const annotation = breakEvenChart.options.plugins.annotation.annotations.breakEvenLabel;
+                annotation.xValue = x;
+                annotation.yValue = y;
+                annotation.display = display;
+                breakEvenChart.update(); // Update the chart to apply annotation changes
+            }
+        }
+
+        // Initialize chart and perform first calculation after page loads
+        window.onload = function() {
+            // Initialize the chart directly
+            initializeChart(); 
+            // Perform first calculation and chart update
+            calculateBreakEvenPointAndUpdateChart(); 
+        };
+
+        // Add click event listener to the button
+        calculateBtn.addEventListener('click', calculateBreakEvenPointAndUpdateChart);
+
+        // Add input event listeners to input fields for real-time updates
+        fixedCostInput.addEventListener('input', calculateBreakEvenPointAndUpdateChart);
+        variableCostPerUnitInput.addEventListener('input', calculateBreakEvenPointAndUpdateChart);
+        sellingPricePerUnitInput.addEventListener('input', calculateBreakEvenPointAndUpdateChart);
+
+        // Allow calculation on Enter key press (kept, but input event covers most needs)
+        fixedCostInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                calculateBreakEvenPointAndUpdateChart();
+            }
+        });
+        variableCostPerUnitInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                calculateBreakEvenPointAndUpdateChart();
+            }
+        });
+        sellingPricePerUnitInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                calculateBreakEvenPointAndUpdateChart();
+            }
+        });
+    </script>
+</body>
+</html>
